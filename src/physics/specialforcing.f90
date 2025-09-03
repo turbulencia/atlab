@@ -6,6 +6,8 @@ module SpecialForcing
     use TLab_WorkFlow, only: TLab_Write_ASCII, TLab_Stop
     use TLab_Memory, only: TLab_Allocate_Real
     use TLab_Grid, only: x, y, z
+    use Tlab_Background, only: qbg
+    use Profiles, only: Profiles_Calculate
     implicit none
     private
 
@@ -37,7 +39,7 @@ module SpecialForcing
     real(wp) amplitude(3, nwaves_max)                   ! wave amplitudes in x, y, z
     real(wp) wavenumber(3, nwaves_max)                  ! wavenumbers in x, y, z
     real(wp) frequency(nwaves_max)                      ! wave frequencies
-    real(wp) envelope(4)                                ! (x,y,z) position, size
+    real(wp) envelope(6)                                ! (x,y,z) position, size
 
     real(wp), allocatable, target :: tmp_envelope(:, :, :) ! arrays for this routine
     real(wp), allocatable, target :: tmp_phase(:, :, :)
@@ -128,10 +130,12 @@ contains
                 nwaves = nwaves - 1                                         ! correct for the increment in the loop
 
                 envelope(:) = 0.0_wp
-                call ScanFile_Char(bakfile, inifile, block, 'Envelope', '1.0,1.0,1.0, 1.0', sRes) ! position and size
+                call ScanFile_Char(bakfile, inifile, block, 'Envelope', '1.0, 1.0, 1.0, 1.0, 1.0, 1.0', sRes) ! position and size
                 idummy = MAX_PARS
                 call LIST_REAL(sRes, idummy, envelope)
                 envelope(4) = abs(envelope(4))                              ! make sure the size parameter is positive
+                envelope(5) = abs(envelope(5))                              ! make sure the size parameter is positive
+                envelope(6) = abs(envelope(6))                              ! make sure the size parameter is positive
 
                 forcingProps%active(2) = .false.                            ! only active in x and z
 
@@ -151,14 +155,17 @@ contains
             idsp = 0; jdsp = 0
 #endif
 
-            dummy(1) = 0.5_wp/envelope(4)**2.0_wp
+            dummy(1) = 0.5_wp/envelope(4)**2.0_wp ! width in x-direction
+            dummy(2) = 0.5_wp/envelope(5)**2.0_wp ! width y-direction
+            dummy(3) = 0.5_wp/envelope(6)**2.0_wp ! width z-direction
+            
             do k = 1, kmax
                 do j = 1, jmax
                     do i = 1, imax
                         rx = x%nodes(idsp + i) - envelope(1)
                         ry = y%nodes(jdsp + j) - envelope(2)
                         rz = z%nodes(k) - envelope(3)
-                        tmp_envelope(i, j, k) = exp(-dummy(1)*(rx*rx + ry*ry + rz*rz))
+                        tmp_envelope(i, j, k) = exp(- dummy(1)*rx*rx - dummy(2)*ry*ry - dummy(3)*rz*rz)
                         do iwave = 1, nwaves
                             tmp_phase(i, k, iwave) = rx*wavenumber(1, iwave) + rz*wavenumber(3, iwave)
                         end do
@@ -174,6 +181,8 @@ contains
 !########################################################################
 !########################################################################
     subroutine SpecialForcing_Source(locProps, nx, ny, nz, iq, time, q, h, tmp)
+        use FDM, only: g
+        
         type(term_dt), intent(in) :: locProps
         integer(wi), intent(in) :: nx, ny, nz, iq
         real(wp), intent(in) :: time
@@ -203,6 +212,9 @@ contains
         case (TYPE_WAVEMAKER)
             tmp = 0.0_wp
             do k = 1, nz
+                tmp(:,:,k) = Profiles_Calculate(qbg(iq), g(3)%nodes(k))
+            end do 
+            do k = 1, nz
                 do i = 1, nx
                     do iwave = 1, nwaves
                         tmp(i, 1:ny, k) = tmp(i, 1:ny, k) + sin(tmp_phase(i, k, iwave) - frequency(iwave)*time)*amplitude(iq, iwave)
@@ -210,12 +222,19 @@ contains
                 end do
             end do
             tmp = (tmp - q)*tmp_envelope*locProps%parameters(1)
-
+            tmp = tmp*ft(time)
         end select
 
         return
     end subroutine SpecialForcing_Source
-
+    
+    
+    real(wp) function ft(t) 
+        real(wp), intent(in) :: t
+        ft = tanh(0.1_wp*t)
+    end function ft
+    
+    
     !########################################################################
     ! Sinusoidal forcing; Taylor-Green vortex
     !########################################################################

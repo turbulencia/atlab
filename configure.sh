@@ -14,19 +14,23 @@ case $kernel in
     Linux )
 	case $host in 
 	    thunder* ) 
-		SYST=thunder;;
-            mpipc* )
-                SYST=mpipc;; 
-            juqueen* )
-                SYST=juqueen;; 
-            laptop*|home* )
-                SYST=archlinux;; 
-            eetac* )
-                SYST=eetac;; 
-            mi* )
-                SYST=uhhpc;; 
-            *.cen.uni-hamburg.de )
-                SYST=uhhpc-c;; 
+	    	SYST=thunder;;
+        mpipc* )
+            SYST=mpipc;; 
+        juqueen* )
+            SYST=juqueen;; 
+        laptop*|home* )
+            SYST=archlinux;; 
+        eetac* )
+            SYST=eetac;; 
+        mi* )
+            SYST=uhhpc;; 
+        *.cen.uni-hamburg.de )
+            SYST=uhhpc-c;;
+        levante* )
+            SYST=levante;;
+        *XPS-13-9305 )
+            SYST=ubuntu25.04 
 	esac 
 esac
 
