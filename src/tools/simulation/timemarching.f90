@@ -333,6 +333,9 @@ contains
             end select
 
             call DNS_BOUNDS_LIMIT()
+            if (nse_eqns == DNS_EQNS_ANELASTIC) then
+                call TLab_Diagnostic(imax, jmax, kmax, s)
+            end if
             if (int(logs_data(1)) /= 0) return ! Error detected
 
             ! -------------------------------------------------------------------
@@ -557,6 +560,8 @@ contains
         use TLab_Arrays, only: q, s, txc
         use DNS_Arrays, only: hq, hs
         use TLab_Sources
+        use Microphysics, only: Microphysics_Evaporation_Impl, evaporationProps
+        use Thermo_AirWater, only: inb_scal_ql
 
         ! #######################################################################
         ! Accumulate RHS terms
@@ -577,7 +582,12 @@ contains
             s(:, is) = s(:, is) + dte*hs(:, is)
         end do
 
-        call TLab_Diagnostic(imax, jmax, kmax, s)
+        ! #######################################################################
+        ! Iterate implicit non-evaporation
+        call Microphysics_Evaporation_Impl(evaporationProps,imax,jmax,kmax,inb_scal_ql,s,dte)
+
+        ! #######################################################################
+        !call TLab_Diagnostic(imax, jmax, kmax, s) !RH: tbd after re-enforcing scalar limits -> moved to TMarch_RungeKutta
 
         return
     end subroutine TMarch_Substep_Anelastic_Explicit

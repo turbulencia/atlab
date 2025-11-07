@@ -72,5 +72,9 @@ Workflow summary. Details of each tool and corresponding input data to be read i
 * Case64. Same as Case63, but with gray radiation model.  
 * Case65. Same as Case63, but with band radiation model.  
 
+* Case71. Airwater non-equilibrium (1-moment bulk scheme) anelastic formulation of stratocumulus-topped boundary layer.
+          Same as Case61, but with explicit non-equilibrium formulation for mono-disperse droplets.
+* Case72. Same as Case62, but with semi-implicit non-equilibrium formulation for log-normal DSD droplets.
+* Case73. Same as Case62, but with fully implicit non-equilibrium formulation for log-normal DSD droplets.
 
 <!-- make checkrl/checkdb runs the check.sh bash-script inside each directory -->

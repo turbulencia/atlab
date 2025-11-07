@@ -154,7 +154,7 @@ contains
         logs_data(1) = 0; obs_data(1) = 0 ! Status
         call DNS_BOUNDS_CONTROL()
         call DNS_OBS_CONTROL()
-        call DNS_BOUNDS_LIMIT()
+        ! call DNS_BOUNDS_LIMIT() !RH: schould be obsolete here
 
         ! call DNS_LOGS_PATH_INITIALIZE()
         call DNS_LOGS_INITIALIZE()
@@ -451,7 +451,7 @@ contains
 
         end select
 
-        if (imixture == MIXT_TYPE_AIRWATER .and. evaporationProps%type == TYPE_EVA_EQUILIBRIUM) then
+        if (imixture == MIXT_TYPE_AIRWATER .and. (evaporationProps%type == TYPE_EVA_EQUILIBRIUM .or. evaporationProps%type == TYPE_EVA_QSCALC_IMPL .or. evaporationProps%type == TYPE_EVA_QSCALC_SEMIIMPL)) then
             line1 = line1(1:ip)//' '//' NewtonRs'; ip = ip + 1 + 10
         end if
 
@@ -493,7 +493,7 @@ contains
 
         end select
 
-        if (imixture == MIXT_TYPE_AIRWATER .and. evaporationProps%type == TYPE_EVA_EQUILIBRIUM) then
+        if (imixture == MIXT_TYPE_AIRWATER .and. (evaporationProps%type == TYPE_EVA_EQUILIBRIUM .or. evaporationProps%type == TYPE_EVA_QSCALC_IMPL .or. evaporationProps%type == TYPE_EVA_QSCALC_SEMIIMPL)) then
 #ifdef USE_MPI
             call MPI_ALLREDUCE(NEWTONRAPHSON_ERROR, dummy, 1, MPI_REAL8, MPI_MAX, MPI_COMM_WORLD, ims_err)
             NEWTONRAPHSON_ERROR = dummy

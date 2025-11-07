@@ -245,10 +245,10 @@ contains
             select case (imode_thermo)
             case (THERMO_TYPE_ANELASTIC)
                 p_aux(1:nz) = pbackground(1:nz)
-                pbackground(1:nz) = 1.0_wp                                             ! Set p to 1 to get 1/RT
-                call Thermo_Anelastic_Rho(1, 1, nz, s, r_aux(:), wrk_aux(:))        ! Get r_aux=1/RT
+                pbackground(1:nz) = 1.0_wp                                          ! Set p to 1 to get 1/RT
+                call Thermo_Anelastic_Rho(1, 1, nz, s, r_aux(1:nz), wrk_aux(1:nz))  ! Get r_aux=1/RT
                 pbackground(1:nz) = p_aux(1:nz)
-                r_aux(1:nz) = -scaleheightinv*r_aux(1:nz)                                 ! Define (1/p)dpdz = -g/RT
+                r_aux(1:nz) = -scaleheightinv*r_aux(1:nz)                           ! Define (1/p)dpdz = -g/RT
 
             case (THERMO_TYPE_COMPRESSIBLE)
                 ! call THERMO_AIRWATER_PH_RE(nx, s(:, 2), p, s(:, 1), T)
