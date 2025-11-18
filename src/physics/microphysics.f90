@@ -1,7 +1,7 @@
 #include "tlab_error.h"
 
 module Microphysics
-    use TLab_Constants, only: wp, wi, pi_wp, efile, MAX_VARS, MAX_PARS
+    use TLab_Constants, only: wp, wi, pi_wp, efile, MAX_VARS, MAX_PARS, wfile
     use NavierStokes, only: nse_eqns, DNS_EQNS_ANELASTIC
     use TLab_Memory, only: inb_scal_array
     use TLab_WorkFlow, only: TLab_Write_ASCII, TLab_Stop
@@ -15,6 +15,8 @@ module Microphysics
 
     public :: Microphysics_Initialize
     public :: Microphysics_Sedimentation_Z
+    public :: Microphysics_Evaporation
+    public :: Microphysics_Evaporation_Impl
 
     ! -------------------------------------------------------------------
     type microphysics_dt
@@ -35,9 +37,13 @@ module Microphysics
     type(microphysics_dt), public, protected :: evaporationProps            ! Microphysics parameters
     integer, parameter :: TYPE_EVA_NONE = 0
     integer, parameter, public :: TYPE_EVA_EQUILIBRIUM = 1
+    integer, parameter, public :: TYPE_EVA_QSCONST = 2
+    integer, parameter, public :: TYPE_EVA_QSCALC = 3
+    integer, parameter, public :: TYPE_EVA_QSCALC_IMPL = 4
+    integer, parameter, public :: TYPE_EVA_QSCALC_SEMIIMPL = 5
 
     real(wp) :: settling                         ! sedimentation effects
-    ! real(wp) :: damkohler(MAX_VARS)              ! reaction
+    real(wp) :: damkohler                        ! reaction
     ! real(wp) :: stokes                           ! particle inertial effects
 
 contains
@@ -62,16 +68,22 @@ contains
         call TLab_Write_ASCII(bakfile, '#')
         call TLab_Write_ASCII(bakfile, '#['//trim(adjustl(block))//']')
         call TLab_Write_ASCII(bakfile, '#Type=<value>')
-        ! call TLab_Write_ASCII(bakfile, '#Damkohler=<value>')
+        call TLab_Write_ASCII(bakfile, '#Damkohler=<value>')
         call TLab_Write_ASCII(bakfile, '#Parameters=<value>')
 
         call ScanFile_Char(bakfile, inifile, block, 'Type', 'none', sRes)
         if (trim(adjustl(sRes)) == 'none') then; evaporationProps%type = TYPE_EVA_NONE
         elseif (trim(adjustl(sRes)) == 'equilibrium') then; evaporationProps%type = TYPE_EVA_EQUILIBRIUM
+        elseif (trim(adjustl(sRes)) == 'qsconst') then; evaporationProps%type = TYPE_EVA_QSCONST
+        elseif (trim(adjustl(sRes)) == 'qscalc')  then; evaporationProps%type = TYPE_EVA_QSCALC
+        elseif (trim(adjustl(sRes)) == 'qscalc-impl')  then; evaporationProps%type = TYPE_EVA_QSCALC_IMPL
+        elseif (trim(adjustl(sRes)) == 'qscalc-semiimpl')  then; evaporationProps%type = TYPE_EVA_QSCALC_SEMIIMPL
         else
-            call TLab_Write_ASCII(efile, trim(adjustl(eStr))//'Error in entry Type.')
+            call TLab_Write_ASCII(efile, trim(adjustl(eStr))//'Error in entry Type.'//trim(adjustl(sRes)))
             call TLab_Stop(DNS_ERROR_OPTION)
         end if
+
+        call ScanFile_Real(bakfile, inifile, block, 'Damkohler', '0.0', damkohler)
 
         if (evaporationProps%type /= TYPE_EVA_NONE) then
             evaporationProps%parameters(:) = 1.0_wp         ! default values
@@ -80,18 +92,30 @@ contains
                 idummy = MAX_PARS
                 call LIST_REAL(sRes, idummy, evaporationProps%parameters)
             end if
+            call ScanFile_Real(bakfile, inifile, block, 'Exponent', '0.0', evaporationProps%auxiliar(1))
 
         end if
 
         ! -------------------------------------------------------------------
         ! Initialize
         if (imixture == MIXT_TYPE_AIRWATER) then
-            if (evaporationProps%type == TYPE_EVA_EQUILIBRIUM) then
-                inb_scal_array = inb_scal_array + 1         ! space for ql as diagnostic variable.
 
-!            use Thermo_Base, only: dsmooth, NEWTONRAPHSON_ERROR
+            select case (evaporationProps%type)
+
+            case(TYPE_EVA_EQUILIBRIUM)
+                inb_scal_array = inb_scal_array + 1         ! space for ql as diagnostic variable.
+!                use Thermo_Base, only: dsmooth, NEWTONRAPHSON_ERROR
                 dsmooth = evaporationProps%parameters(1)    ! Smooth factor for thermodynamic partial derivatives
-            end if
+
+            case (TYPE_EVA_QSCONST,TYPE_EVA_QSCALC,TYPE_EVA_QSCALC_IMPL,TYPE_EVA_QSCALC_SEMIIMPL)
+                evaporationProps%active(inb_scal_ql) = .true.           ! Only ql scalars is affected
+                if (damkohler <= 0.0_wp) then
+                    call TLab_Write_ASCII(efile, __FILE__//'. Damkohler number must be nonzero if non-equilibrium evaporation is retained.')
+                    call TLab_Stop(DNS_ERROR_OPTION)
+                end if
+                dsmooth = evaporationProps%parameters(3)    ! Smooth factor for thermodynamic partial derivatives
+
+            end select
 
             if (inb_scal_array <= 3) then
                 call TLab_Write_ASCII(efile, trim(adjustl(eStr))//'AirWater mixture needs at least 4 scalar arrays.')
@@ -249,11 +273,279 @@ contains
 
     end subroutine Microphysics_Sedimentation_Z
 
-! !########################################################################
-! !########################################################################
-!     subroutine Microphysics_Evaporation()
+!########################################################################
+!########################################################################
+    subroutine Microphysics_Evaporation(locProps, nx, ny, nz, is, s, source)
+        use Thermo_AirWater, only: inb_scal_T, rd_ov_rv
+        use Thermo_Base, only: THERMO_PSAT, NPSAT
+        use Thermo_Anelastic, only: pbackground, rbackground, Thermo_Anelastic_Weight_OutPlace
+        type(microphysics_dt), intent(in) :: locProps
+        integer(wi), intent(in) :: nx, ny, nz, is
+        real(wp), intent(in) :: s(nx*ny, nz, inb_scal_array)
+        real(wp), intent(out) :: source(nx*ny, nz)
 
-!         return
-!     end subroutine Microphysics_Evaporation
+        target s, source
+
+        integer(wi) :: k, ipsat
+        
+        real(wp) :: qsat(nx*ny, nz)
+
+        real(wp) :: dummy, mod_exponent
+
+        real(wp), pointer :: s_active(:,:) => null()
+
+        character(len=512) :: istr,tstr
+
+        source = 0.0_wp
+
+        mod_exponent = locProps%auxiliar(1)
+
+        select case (locProps%type)
+        case (TYPE_EVA_QSCONST,TYPE_EVA_QSCALC)
+            if (is .eq. inb_scal_ql) then
+                
+                select case (locProps%type)
+                case (TYPE_EVA_QSCONST)
+                    ! -------------------------------------------------------------------
+                    ! Use a constant saturation specific humidity q_sat
+                    ! -------------------------------------------------------------------
+                    qsat = locProps%parameters(2)
+                
+                case (TYPE_EVA_QSCALC)
+                    ! -------------------------------------------------------------------
+                    ! Calculate saturation specific humidity q_sat(T,p)
+                    ! -------------------------------------------------------------------
+#define P_LOC pbackground
+#define T_LOC s(:,:,inb_scal_T)
+#define psat qsat
+#define tmp1 qsat
+                    psat(:,:) = THERMO_PSAT(NPSAT)
+                    do ipsat = NPSAT - 1, 1, -1
+                        psat(:,:) = psat(:,:)*T_LOC + THERMO_PSAT(ipsat)
+                    end do
+                    do k = 1, nz
+                        tmp1(:,k) = rd_ov_rv/(P_LOC(k)/psat(:,k) - 1.0_wp)
+                    end do
+                    qsat(:,:) = tmp1(:,:)/(1.0_wp + tmp1(:,:))
+#undef P_LOC
+#undef T_LOC
+#undef psat
+#undef tmp1
+                end select
+
+                ! -------------------------------------------------------------------
+                ! Calculate condensation rate as 1/Sq * ( (q_t-q_l)/q_s - 1 ) * q_l^(1+alpha)
+                ! -------------------------------------------------------------------
+                if (nse_eqns == DNS_EQNS_ANELASTIC) then
+                    call Thermo_Anelastic_Weight_OutPlace(nx, ny, nz, rbackground, s(:,:,inb_scal_ql), source)
+                    s_active => source
+                else
+                    s_active => s(:,:,inb_scal_ql)
+                end if
+                if (mod_exponent /= 0.0_wp) then ! to avoid the calculation of a power, if not necessary
+                    dummy = 1.0_wp + mod_exponent
+                    source = damkohler*locProps%parameters(1) * ( (s(:,:,inb_scal_qt)-s(:,:,inb_scal_ql))/qsat - 1.0_wp ) * sign(1.0_wp,s_active)*(abs(s_active))**dummy 
+                else
+                    source = damkohler*locProps%parameters(1) * ( (s(:,:,inb_scal_qt)-s(:,:,inb_scal_ql))/qsat - 1.0_wp ) * s_active
+                end if
+
+            else
+                write(tstr,"(I2)") inb_scal_ql
+                write(istr,"(I2)") is
+                call TLab_Write_ASCII(wfile, 'WARNING: Unexpectedly Scalar'//trim(istr)//' (other than q_l=Scalar'//trim(tstr)//') set to active for NON-EQUILIBRIUM EVAPORATION')
+
+            end if
+
+        end select
+
+        nullify (s_active)
+
+    end subroutine Microphysics_Evaporation
+
+!########################################################################
+!########################################################################
+    subroutine Microphysics_Evaporation_Impl(locProps, nx, ny, nz, is, s, dte)
+        use Thermo_AirWater, only: inb_scal_T, rd_ov_rv, Cd, Cdv, Cvl, Lv0
+        use Thermo_Base, only: THERMO_PSAT, NPSAT
+        use Thermo_Anelastic, only: pbackground, rbackground, ribackground, epbackground
+        use Thermo_Anelastic, only: Thermo_Anelastic_Weight_OutPlace, Thermo_Anelastic_Weight_InPlace
+        use Thermo_Anelastic, only: NEWTONRAPHSON_ERROR
+#ifdef USE_MPI
+        use mpi_f08
+        use TLabMPI_VARS, only: ims_err
+        real(wp) diff_glob
+#endif
+        type(microphysics_dt), intent(in) :: locProps
+        integer(wi), intent(in) :: nx, ny, nz, is
+        real(wp), intent(in)    :: dte
+        real(wp), intent(inout) :: s(nx*ny, nz, inb_scal_array)
+        
+
+        integer(wi) :: k, ipsat, it
+        
+        real(wp), dimension(nx*ny,nz) :: s_RHS, tmp1, tmp2, qsat, diqsdql, dTdql
+
+        real(wp) :: mod_exponent, diff, eps
+
+        real(wp), dimension(nx*ny,nz) :: s_active
+        !real(wp), pointer :: s_active(:,:) => null()
+
+        !target s, tmp2
+
+        character(len=512) :: istr,tstr
+
+
+        
+        
+        mod_exponent = locProps%auxiliar(1)
+
+        select case (locProps%type)
+        case (TYPE_EVA_QSCALC_IMPL,TYPE_EVA_QSCALC_SEMIIMPL)
+            if (is .eq. inb_scal_ql) then
+
+                if ( locProps%type == TYPE_EVA_QSCALC_SEMIIMPL ) then
+                    ! -------------------------------------------------------------------
+                    ! Update Temperature
+                    ! -------------------------------------------------------------------
+                    call TLab_Diagnostic(nx,ny,nz,s)
+
+                    ! -------------------------------------------------------------------
+                    ! Update saturation specific humidity q_sat(T,p)
+                    ! -------------------------------------------------------------------
+#define P_LOC pbackground
+#define T_LOC s(:,:,inb_scal_T)
+#define psat qsat
+#define qstmp qsat
+                    psat(:,:) = THERMO_PSAT(NPSAT)
+                    do ipsat = NPSAT - 1, 1, -1
+                        psat(:,:) = psat(:,:)*T_LOC + THERMO_PSAT(ipsat)
+                    end do
+                    do k = 1, nz
+                        qstmp(:,k) = rd_ov_rv/(P_LOC(k)/psat(:,k) - 1.0_wp)
+                    end do
+                    qsat(:,:) = qstmp(:,:)/(1.0_wp + qstmp(:,:))
+#undef P_LOC
+#undef T_LOC
+#undef psat
+#undef qstmp
+                end if
+
+                diqsdql(:,:)=0.0_wp
+                s_RHS(:,:) = s(:,:,inb_scal_ql)
+                it=0
+                eps=1.e-12_wp
+                diff=1.0_wp
+                do while (diff>eps .and. it<=10)
+                !do while (it<=10)
+                    if ( locProps%type == TYPE_EVA_QSCALC_IMPL ) then
+                        ! -------------------------------------------------------------------
+                        ! Update Temperature
+                        ! -------------------------------------------------------------------
+                        call TLab_Diagnostic(nx,ny,nz,s)
+
+                        ! -------------------------------------------------------------------
+                        ! Update saturation specific humidity q_sat(T,p)
+                        ! -------------------------------------------------------------------
+#define P_LOC pbackground
+#define T_LOC s(:,:,inb_scal_T)
+#define psat qsat
+#define qstmp qsat
+
+#define E_LOC epbackground
+#define dpsdT diqsdql
+                        psat(:,:) = THERMO_PSAT(NPSAT)
+                        dpsdT(:,:) = 0.0_wp
+                        do ipsat = NPSAT - 1, 1, -1
+                            psat(:,:) = psat(:,:)*T_LOC + THERMO_PSAT(ipsat)
+                            dpsdT(:,:) = dpsdT(:,:)*T_LOC + THERMO_PSAT(ipsat+1)*ipsat
+                        end do
+                        do k = 1, nz
+                            dTdql(:,k) = ( Lv0*(Cd+Cdv*s(:,k,inb_scal_qt)) - Cvl*(s(:,k,inb_scal_e)-E_LOC(k)) )/(( Cd + Cdv*s(:,k,inb_scal_qt) + Cvl*s(:,k,inb_scal_ql) )**2)
+                            diqsdql(:,k)= -P_LOC(k)/(psat(:,k)**2)/rd_ov_rv * dpsdT(:,k) * dTdql(:,k)
+                            qstmp(:,k) = rd_ov_rv/(P_LOC(k)/psat(:,k) - 1.0_wp)
+                        end do
+                        qsat(:,:) = qstmp(:,:)/(1.0_wp + qstmp(:,:))
+#undef P_LOC
+#undef T_LOC
+#undef psat
+#undef qstmp
+
+#undef E_LOC
+#undef dpsdT
+                    end if
+
+                    ! -------------------------------------------------------------------
+                    ! Calculate condensation rate as 1/Sq * ( (q_t-q_l)/q_s - 1 ) * q_l^(1+alpha)
+                    ! -------------------------------------------------------------------
+                    if (nse_eqns == DNS_EQNS_ANELASTIC) then
+                        !call Thermo_Anelastic_Weight_OutPlace(nx, ny, nz, rbackground, s(:,:,inb_scal_ql), tmp2)
+                        !s_active => tmp2
+                        call Thermo_Anelastic_Weight_OutPlace(nx, ny, nz, rbackground, s(:,:,inb_scal_ql), s_active)
+                    else
+                        !s_active => s(:,:,inb_scal_ql)
+                        s_active = s(:,:,inb_scal_ql)
+                    end if
+
+                    s_active = max(s_active, 0.0_wp)
+
+                    ! --- Derivative df(q_l)/dq_l for NRmethod --- 
+                    ! ( rescaled by q_l^alpha to avoid division by zero )
+                    tmp1 = ( (s(:,:,inb_scal_qt)-s(:,:,inb_scal_ql))/qsat - 1.0_wp ) * (1.0_wp + mod_exponent)
+                    if (nse_eqns == DNS_EQNS_ANELASTIC) then
+                        call Thermo_Anelastic_Weight_InPlace(nx, ny, nz, rbackground, tmp1)
+                    end if
+                    tmp1 = tmp1  + ( -1.0_wp/qsat + (s(:,:,inb_scal_qt)-s(:,:,inb_scal_ql))*diqsdql ) * s_active
+                    tmp1 = tmp1  * damkohler*locProps%parameters(1)
+                    if (nse_eqns == DNS_EQNS_ANELASTIC) then
+                        call Thermo_Anelastic_Weight_InPlace(nx, ny, nz, ribackground, tmp1)
+                    end if
+                    if (mod_exponent /= 0.0_wp) then ! to avoid the calculation of a power, if not necessary
+                        !tmp1 = sign(1.0_wp,s_active)*(abs(s_active))**(-mod_exponent) - dte*tmp1
+                        tmp1 = s_active**(-mod_exponent) - dte*tmp1
+                    else
+                        tmp1 = 1.0_wp - dte*tmp1
+                    end if
+
+                    ! --- Source term delta f(q_l) for NRmethod ---
+                    ! ( rescaled by q_l^alpha to avoid division by zero )
+                    tmp2 = damkohler*locProps%parameters(1) * ( (s(:,:,inb_scal_qt)-s(:,:,inb_scal_ql))/qsat - 1.0_wp ) * s_active
+                    if (nse_eqns == DNS_EQNS_ANELASTIC) then
+                        call Thermo_Anelastic_Weight_InPlace(nx, ny, nz, ribackground, tmp2)
+                    end if
+                    if (mod_exponent /= 0.0_wp) then ! to avoid the calculation of a power, if not necessary
+                        !tmp2 = sign(1.0_wp,s_active)*(abs(s_active))**(-mod_exponent) * (s(:,:,inb_scal_ql) - s_RHS) - dte*tmp2
+                        tmp2 = s_active**(-mod_exponent) * (s(:,:,inb_scal_ql) - s_RHS) - dte*tmp2
+                    else
+                        tmp2 = s(:,:,inb_scal_ql) - s_RHS - dte*tmp2
+                    end if
+
+                    ! -------------------------------------------------------------------
+                    ! Newton-Raphson iteration
+                    ! -------------------------------------------------------------------
+                    s(:,:,inb_scal_ql) = s(:,:,inb_scal_ql) - tmp2/tmp1
+
+                    diff = MAXVAL( ABS( tmp2/tmp1 / s(:,:,inb_scal_ql) ) )
+#ifdef USE_MPI
+                    call MPI_ALLREDUCE(diff, diff_glob, 1, MPI_REAL8, MPI_MAX, MPI_COMM_WORLD, ims_err)
+                    diff = diff_glob
+#endif
+
+                    
+                    it = it + 1
+                end do
+                NEWTONRAPHSON_ERROR = diff
+
+            else
+                write(tstr,"(I2)") inb_scal_ql
+                write(istr,"(I2)") is
+                call TLab_Write_ASCII(wfile, 'WARNING: Unexpectedly Scalar'//trim(istr)//' (other than q_l=Scalar'//trim(tstr)//') set to active for NON-EQUILIBRIUM EVAPORATION')
+
+            end if
+
+        end select
+
+        !nullify (s_active)
+
+    end subroutine Microphysics_Evaporation_Impl
 
 end module

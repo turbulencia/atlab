@@ -92,9 +92,22 @@ contains
             end if
 
             ! -----------------------------------------------------------------------
-            ! Microphysics
+            ! Microphysics - Sedimentation
             if (sedimentationProps%active(is)) then
                 call Microphysics_Sedimentation_Z(sedimentationProps, imax, jmax, kmax, is, s, tmp1, tmp2)
+
+                if (nse_eqns == DNS_EQNS_ANELASTIC) then
+                    call Thermo_Anelastic_Weight_Add(imax, jmax, kmax, ribackground, tmp1, hs(:, is))
+                else
+                    hs(:, is) = hs(:, is) + tmp1(:)
+                end if
+
+            end if
+
+            ! -----------------------------------------------------------------------
+            ! Microphysics - Non-equilibrium Evaporation
+            if (evaporationProps%active(is)) then
+                call Microphysics_Evaporation(evaporationProps, imax, jmax, kmax, is, s, tmp1)
 
                 if (nse_eqns == DNS_EQNS_ANELASTIC) then
                     call Thermo_Anelastic_Weight_Add(imax, jmax, kmax, ribackground, tmp1, hs(:, is))

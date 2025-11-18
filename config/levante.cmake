@@ -30,13 +30,9 @@ else() # compiler for serial build
   set(ENV{FC} ifort)
   set(CMAKE_Fortran_COMPILER ifort)
 
-  if    ( ${BUILD_TYPE} STREQUAL "BIG" )
+  if    ( ${BUILD_TYPE} STREQUAL "SERIAL" )
    set(USER_Fortran_FLAGS_RELEASE  " -march=core-avx2 -mtune=core-avx2 -qopt-prefetch -O3 -ipo" )
    #set(USER_Fortran_FLAGS_RELEASE  " -march=skylake-avx512 -axcommon-avx512,SSE4.2 -qopt-prefetch -O3 -ipo" )
-   set(CMAKE_BUILD_TYPE RELEASE)
-
-  elseif( ${BUILD_TYPE} STREQUAL "LITTLE" )
-   set(USER_Fortran_FLAGS_RELEASE  " -march=core-avx2 -mtune=core-avx2 -qopt-prefetch -O3 -ipo" )
    set(CMAKE_BUILD_TYPE RELEASE)
 
   else()
