@@ -21,4 +21,10 @@ module TLabMPI_VARS
 
     type(MPI_Datatype) :: TLAB_MPI_REAL_TYPE                    ! MPI Type control
 
+    type :: mpi_grid_dt
+        type(MPI_Comm) :: comm
+        integer :: num_processors
+        integer :: rank
+    end type
+
 end module TLabMPI_VARS

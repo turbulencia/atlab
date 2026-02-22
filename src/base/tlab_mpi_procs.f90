@@ -23,7 +23,8 @@ contains
         integer(wi) dims(2), coord(2)
         logical period(2), remain_dims(2), reorder
 
-        character(len=32) bakfile !, block
+        character(len=32) bakfile, block
+        character(len=128) eStr
         character(len=512) sRes!, line
         character*64 lstr
         integer(wi) nsize_total
@@ -31,16 +32,18 @@ contains
         ! #######################################################################
         ! Domain decomposition in parallel mode
         bakfile = trim(adjustl(inifile))//'.bak'
+        block = 'Grid'
+        eStr = __FILE__//'. '//trim(adjustl(block))//'. '
 
         call TLab_Write_ASCII(bakfile, '#')
-        call TLab_Write_ASCII(bakfile, '#[Grid]')
+        call TLab_Write_ASCII(bakfile, '#['//trim(adjustl(block))//']')
         call TLab_Write_ASCII(bakfile, '#Imax(*)=<imax_proc>')
         call TLab_Write_ASCII(bakfile, '#Jmax(*)=<jmax_proc>')
 
         if (ims_npro > 1) then
             nsize_total = jmax
             write (lstr, *) nsize_total
-            call ScanFile_Int(bakfile, inifile, 'Grid', 'Jmax(*)', trim(adjustl(lstr)), jmax)
+            call ScanFile_Int(bakfile, inifile, block, 'Jmax(*)', trim(adjustl(lstr)), jmax)
             if (jmax > 0 .and. mod(nsize_total, jmax) == 0) then
                 ims_npro_j = nsize_total/jmax
             else
@@ -50,7 +53,7 @@ contains
 
             nsize_total = imax
             write (lstr, *) nsize_total
-            call ScanFile_Int(bakfile, inifile, 'Grid', 'Imax(*)', trim(adjustl(lstr)), imax)
+            call ScanFile_Int(bakfile, inifile, block, 'Imax(*)', trim(adjustl(lstr)), imax)
             if (imax > 0 .and. mod(nsize_total, imax) == 0) then
                 ims_npro_i = nsize_total/imax
             else

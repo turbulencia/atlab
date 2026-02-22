@@ -6,7 +6,15 @@ module TLab_Grid
     implicit none
     private
 
-    type, public :: grid_dt
+    public :: TLab_Grid_Read
+    public :: TLab_Grid_Write
+
+    public :: grid_dt
+    public :: grid, x, y, z
+    public :: subGrid, subX, subY, subZ
+
+    ! -----------------------------------------------------------------------
+    type :: grid_dt
         ! sequence
         character*8 name
         integer(wi) size
@@ -16,15 +24,36 @@ module TLab_Grid
         real(wp), allocatable :: nodes(:)
     end type
 
-    type(grid_dt), public, target :: grid(3)
-    type(grid_dt), public, pointer :: x => grid(1), y => grid(2), z => grid(3)
+    type(grid_dt), target :: grid(3)
+    type(grid_dt), pointer :: x => grid(1), y => grid(2), z => grid(3)
 
-    public :: TLab_Grid_Read
-    public :: TLab_Grid_Write
+    type :: subgrid_dt
+        type(grid_dt), pointer :: parent
+        integer :: offset
+        integer :: size
+    contains
+        procedure :: initialize => sub_grid_initialize
+    end type
+
+    type(subgrid_dt), target :: subGrid(3)
+    type(subgrid_dt), pointer :: subX => subGrid(1), subY => subGrid(2), subZ => subGrid(3)
 
 contains
-!########################################################################
-!########################################################################
+    !########################################################################
+    !########################################################################
+    subroutine sub_grid_initialize(self, grid)
+        class(subgrid_dt), intent(inout) :: self
+        type(grid_dt), intent(in), target :: grid
+
+        self%parent => grid
+        self%offset = 0
+        self%size = grid%size
+
+        return
+    end subroutine
+
+    !########################################################################
+    !########################################################################
     subroutine TLab_Grid_Read(name, x, y, z, sizes)
         character*(*) name
         type(grid_dt), intent(inout) :: x, y, z
