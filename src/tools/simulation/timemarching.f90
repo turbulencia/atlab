@@ -260,8 +260,8 @@ contains
             ! Diagnostics
             call TLab_Diagnostic(imax, jmax, kmax, s)
 
-            TMarchScheme%substep = TMarchScheme%substep + 1
             TMarchScheme%time = TMarchScheme%time + TMarchScheme%coef_t(TMarchScheme%substep)*dtime
+            TMarchScheme%substep = TMarchScheme%substep + 1
 
             ! -------------------------------------------------------------------
             ! Profiling data
