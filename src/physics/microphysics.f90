@@ -213,7 +213,7 @@ contains
         type(microphysics_dt), intent(in) :: locProps
         integer(wi), intent(in) :: nx, ny, nz, is
         real(wp), intent(in) :: s(nx*ny*nz, inb_scal_array)
-        real(wp), intent(out) :: rhs(nx*ny*nz)              ! array to which heating rate is added
+        real(wp), intent(inout) :: rhs(nx*ny*nz)              ! array to which heating rate is added
         real(wp), intent(inout) :: tmp1(nx*ny*nz)
         real(wp), intent(out), optional :: flux(nx*ny*nz)
 

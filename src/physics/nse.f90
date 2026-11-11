@@ -16,8 +16,8 @@ subroutine NavierStokes_PerVolume(hq, hs, dte, remove_divergence)
     use OPR_Elliptic, only: OPR_Poisson
     implicit none
 
-    real(wp), intent(out) :: hq(isize_field, inb_flow)
-    real(wp), intent(out) :: hs(isize_field, inb_scal)
+    real(wp), intent(inout) :: hq(isize_field, inb_flow)
+    real(wp), intent(inout) :: hs(isize_field, inb_scal)
     real(wp), intent(in) :: dte
     logical, intent(in) :: remove_divergence
 

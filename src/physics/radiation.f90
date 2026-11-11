@@ -182,7 +182,7 @@ contains
         type(infrared_dt), intent(in) :: localProps
         integer(wi), intent(in) :: nx, ny, nz
         real(wp), intent(in) :: s(nx*ny*nz, *)
-        real(wp), intent(out) :: rhs(nx*ny*nz)              ! array to which heating rate is added
+        real(wp), intent(inout) :: rhs(nx*ny*nz)            ! array to which heating rate is added
         real(wp), intent(inout) :: b(nx*ny*nz)              ! emission function
         real(wp), intent(inout) :: tmp1(nx*ny*nz)           ! flux down, local aux arrays
         real(wp), intent(inout) :: tmp2(nx*ny*nz)           ! flux up, local aux arrays
