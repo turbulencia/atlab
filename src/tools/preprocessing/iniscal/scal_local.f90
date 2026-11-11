@@ -209,7 +209,7 @@ contains
         jdsp = ySubgrid%offset
 #define xn(i) x%nodes(i)
 #define yn(j) y%nodes(j)
-#define zn(j) z%nodes(k)
+#define zn(k) z%nodes(k)
 
         call SCAL_SHAPE(is, wrk1d(1:kmax, 1))
 
@@ -304,8 +304,8 @@ contains
         idsp = xSubgrid%offset
         jdsp = ySubgrid%offset
 #define xn(i) x%nodes(i)
-#define yn(j) z%nodes(k)
-#define disp(i,k) p_wrk2d(i,k,1)
+#define yn(j) y%nodes(j)
+#define disp(i,j) p_wrk2d(i,j,1)
 
         disp(:, :) = 0.0_wp
         select case (flag_s)
