@@ -264,7 +264,7 @@ contains
 
             call MINMAX(imax, jmax, kmax, tmp1, d_min_loc, d_max_loc)
 
-            if (max(abs(d_min_loc), abs(d_min_loc)) > bound_d%max) then
+            if (max(abs(d_min_loc), abs(d_max_loc)) > bound_d%max) then
                 call TLab_Error(__FILE__//'. Dilatation out of bounds.')
                 logs_data(1) = DNS_ERROR_DILATATION
 
